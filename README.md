@@ -90,7 +90,7 @@ model.eval()
 If a checkpoint was created with a modified architecture, recreate that
 exact architecture before loading it.
 
-## 3. In-Distribution Detection Performance (Run Exercise 6 cells)
+## 3. In-Distribution Detection Performance (Run Exercise 3.6 cells)
 
 1.  Load the required checkpoint.
 2.  Use the original test-set preprocessing.
