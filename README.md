@@ -1,268 +1,239 @@
-# CARLA Out-of-Distribution (OOD) Detection
+# CARLA OOD Detection and Safety Evaluation
 
 ## Project Overview
 
-This repository contains the implementation for training and evaluating binary image classifiers on a CARLA-simulated autonomous-driving dataset. Three independent models detect the presence of pedestrians, vehicles, and traffic lights.
-
-The repository also contains experiments for in-distribution evaluation, FGSM adversarial robustness, calibration, Grad-CAM visualisation, and out-of-distribution (OOD) detection under conditions such as fog and night.
+This repository contains three independent binary image classifiers for
+pedestrian, vehicle, and traffic-light detection on a CARLA-simulated
+driving dataset. It also includes experiments for in-distribution
+performance, FGSM robustness, calibration, feature-space OOD detection,
+Grad-CAM explanations, and ODD k-projection coverage.
 
 The main implementation is provided as a Google Colab notebook.
 
 ## Dataset Setup
 
-The CARLA dataset is **not included in this repository**.
+The CARLA dataset is not included in this repository. Extract it with
+the following structure:
 
-After downloading the dataset, extract it so that the structure is:
-
-```text
+``` text
 extracted_dataset/
-├── train/
-│   ├── labels.csv
-│   └── rgb-front/
-├── validation/
-│   ├── labels.csv
-│   └── rgb-front/
-├── test/
-│   ├── labels.csv
-│   └── rgb-front/
-├── test-fog/
-│   ├── labels.csv
-│   └── rgb-front/
-├── test-night/
-│   ├── labels.csv
-│   └── rgb-front/
-└── test-town-01/
-    ├── labels.csv
-    └── rgb-front/
+├── train/           ├── labels.csv
+│                   └── rgb-front/
+├── validation/      ├── labels.csv
+│                   └── rgb-front/
+├── test/            ├── labels.csv
+│                   └── rgb-front/
+├── test-fog/        ├── labels.csv
+│                   └── rgb-front/
+├── test-night/      ├── labels.csv
+│                   └── rgb-front/
+└── test-town-01/    ├── labels.csv
+                    └── rgb-front/
 ```
 
-Set the dataset path in the notebook, for example:
+Set the path in the notebook:
 
-```python
+``` python
 DATASET_PATH = "/content/drive/MyDrive/2026/extracted_dataset"
 ```
 
-## Environment and Dependencies
+## Environment
 
-Main dependencies:
+Main dependencies: PyTorch, Torchvision, NumPy, Pandas, Scikit-learn,
+Matplotlib, Pillow, and tqdm. A GPU is recommended for training and
+feature extraction.
 
-- PyTorch
-- Torchvision
-- NumPy
-- Pandas
-- Scikit-learn
-- Matplotlib
-- Pillow
-- tqdm
+# Reproducing the Results
 
-A GPU is recommended for training and feature extraction.
+## 1. Binary Detector Training (Run exercise 3 cells)
 
-## Reproducing the Experiments
+Three independent classifiers are trained:
 
-The recommended way to reproduce the results is to open the provided Colab notebook, set the dataset path, and execute the relevant cells.
-
-The main experiments are:
-
-1. Binary detector training
-2. In-distribution evaluation
-3. FGSM adversarial robustness
-4. Calibration and temperature scaling
-5. OOD detection
-6. Grad-CAM visualisation
-
-## 1. Training the Binary Classifiers
-
-Three independent binary classifiers are trained:
-
-```text
+``` text
 Pedestrian      → has_pedestrian
 Vehicle         → has_vehicle
 Traffic light   → has_traffic_light
 ```
 
-The classifiers use an ImageNet-pretrained ResNet-18 backbone with a binary classification head.
+The models use an ImageNet-pretrained ResNet-18 backbone with a binary
+classification head.
 
-Training includes image resizing, data augmentation, ImageNet normalization, BCEWithLogitsLoss, Adam optimization, learning-rate scheduling, and early stopping.
+To reproduce training:
 
-To retrain a model:
-
-1. Open the notebook in Google Colab.
-2. Mount Google Drive if required.
-3. Set `DATASET_PATH`.
-4. Run the dataset and preprocessing cells.
-5. Run the training cell for the desired detector.
-6. The best validation-loss checkpoint is saved as a `.pth` file.
+1.  Open the Colab notebook.
+2.  Install/import the required dependencies.
+3.  Mount Google Drive if required.
+4.  Set `DATASET_PATH`.
+5.  Run the dataset and preprocessing cells.
+6.  Run the training cell for the required detector.
+7.  The best validation-loss checkpoint is saved as a `.pth` file.
 
 ## 2. Using the Trained Checkpoints
 
-The trained `.pth` checkpoints can be used **without retraining**. This is the recommended approach when reproducing the evaluation results.
+Retraining is not required when the provided checkpoints are available.
 
-A checkpoint contains the trained model parameters. The model architecture must match the architecture used when the checkpoint was created.
+Use the same model definition and preprocessing used during training:
 
-### Loading a checkpoint
-
-Use the same model definition used during training and then load the checkpoint:
-
-```python
+``` python
 import torch
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 model = BinaryClassifier(pretrained=False)
-
 model.load_state_dict(
-    torch.load(
-        "/path/to/model_checkpoint.pth",
-        map_location=device
-    )
+    torch.load("/path/to/model_checkpoint.pth", map_location=device)
 )
-
 model = model.to(device)
 model.eval()
 ```
 
-Replace the checkpoint path with the location of the required `.pth` file, for example:
+If a checkpoint was created with a modified architecture, recreate that
+exact architecture before loading it.
 
-```python
-model_path = "/content/drive/MyDrive/Models/vehicle_model.pth"
-```
+## 3. In-Distribution Detection Performance (Run Exercise 6 cells)
 
-If the checkpoint was trained with a modified architecture, that exact architecture must be recreated before loading the checkpoint.
+1.  Load the required checkpoint.
+2.  Use the original test-set preprocessing.
+3.  Run the in-distribution evaluation cells.
+4.  Calculate accuracy, precision, recall, and F1-score.
 
-### Using the checkpoint for evaluation
+The safety-case analysis primarily uses per-class recall and the
+specified detection thresholds.
 
-After loading the model:
+## 4. FGSM Adversarial Robustness (Run Exercise 8.5 cell)
 
-```python
-model.eval()
-```
+The reported experiment uses:
 
-the checkpoint can be passed directly to the evaluation cells in the notebook.
-
-For binary predictions, the model output is converted to a probability using:
-
-```python
-probability = torch.sigmoid(output)
-```
-
-The evaluation code in the notebook can then be used to calculate recall, precision, accuracy, F1-score, calibration metrics, FGSM robustness, OOD AUROC, and Grad-CAM visualisations.
-
-**Important:** The checkpoint, model architecture, preprocessing, and input image format should be kept consistent with the original experiment when reproducing the reported results.
-
-## 3. In-Distribution Detection Performance
-
-The binary classifiers are evaluated on the separate in-distribution test set using metrics including recall, precision, accuracy, and F1-score.
-
-Run the corresponding evaluation section after loading the trained checkpoints.
-
-## 4. FGSM Adversarial Robustness
-
-The notebook evaluates robustness against the Fast Gradient Sign Method (FGSM) using the specified perturbation:
-
-```text
+``` python
 epsilon = 0.05
 ```
 
-The experiment compares clean performance with performance after applying the perturbation.
+To reproduce:
 
-Run the FGSM evaluation cells after loading the desired checkpoint.
+1.  Load a trained detector.
+2.  Evaluate clean test images.
+3.  Generate FGSM-perturbed images with `epsilon = 0.05`.
+4.  Re-evaluate the detector.
+5.  Compare clean and adversarial recall and calculate the recall drop.
 
-## 5. Calibration and Temperature Scaling
+## 5. Calibration and Temperature Scaling (Run Exercises 7.4 and 7.5 cells)
 
-The notebook evaluates Expected Calibration Error (ECE) before and after temperature scaling.
+1.  Load the trained checkpoint.
+2.  Use the validation set to estimate the temperature parameter.
+3.  Apply temperature scaling to the logits.
+4.  Evaluate on the separate test set.
+5.  Calculate ECE before and after scaling.
 
-The validation set is used for calibration and the test set is used for evaluation.
+The validation set is used for calibration and the test set for final
+evaluation.
 
-Run the calibration section after loading the corresponding checkpoint.
+## 6. Feature-Space OOD Detection (Run Exercise 9.7 cell)
 
-## 6. Out-of-Distribution Detection
+OOD detection uses ResNet-18 feature representations and a
+ distance score for available conditions such as Fog,
+Night, and different CARLA town/scenario data.
 
-The repository includes feature-space OOD detection experiments for conditions including:
+To reproduce:
 
-- Fog
-- Night
-- Different CARLA town/scenario data where applicable
+1.  Load the trained checkpoint.
+2.  Extract ResNet-18 features from the in-distribution reference data.
+3.  Use Mahalanobis.
+4.  Extract features from ID and OOD test sets.
+5.  Calculate AUROC.
 
-For k-NN OOD detection, the workflow is:
 
-```text
-Trained classifier
-       ↓
-ResNet-18 feature extractor
-       ↓
-Feature representation
-       ↓
-k-NN fitted on in-distribution features
-       ↓
-Distance-based OOD score
-       ↓
-AUROC
+
+## 7. Grad-CAM Visualisation (Run Exercise 6.5 cell)
+
+1.  Load the required checkpoint.
+2.  Select representative ID and OOD images.
+3.  Run the Grad-CAM cell using the same target layer.
+4.  Generate the heatmap overlays.
+5.  Compare daytime ID, night-time OOD, and different-town OOD examples.
+
+Grad-CAM provides qualitative evidence about model attention and does
+not establish prediction correctness by itself.
+
+## 8. ODD k-Projection Coverage (Run Exercise 4.5 cell)
+
+ODD coverage evaluates how well combinations of ODD dimensions are
+represented in the test scenarios. The analysis uses:
+
+``` text
+Weather:  sunny, fog
+Lighting: day, night
+Town:     default, town01
 ```
 
-Higher nearest-neighbour distance indicates that an input is further from the in-distribution feature space.
 
-To reproduce the k-NN OOD results:
+To reproduce:
 
-1. Load the trained checkpoint.
-2. Extract features from the in-distribution reference data.
-3. Fit the k-NN detector.
-4. Extract features from the in-distribution test, Fog, and Night datasets.
-5. Calculate distance-based OOD scores.
-6. Calculate AUROC.
+1.  Download the `odd-coverage` implementation.
+2.  Define the ODD dimensions and possible values.
+3.  Encode the available test scenarios.
+4.  Run k-projection coverage for `k = 1, 2, 3`.
+5.  Record the coverage values.
 
-## 7. Grad-CAM Visualisation
+Example:
 
-Grad-CAM visualisations can be generated to inspect which image regions contribute to model predictions.
+``` python
+scenarios = [
+    {"weather": "sunny", "lighting": "day",   "town": "default"},
+    {"weather": "fog",   "lighting": "day",   "town": "default"},
+    {"weather": "sunny", "lighting": "night", "town": "default"},
+    {"weather": "sunny", "lighting": "day",   "town": "town01"},
+]
+```
 
-The notebook includes visualisation for different driving conditions, including in-distribution daytime and OOD scenarios.
+## Complete Reproduction Workflow
+
+``` text
+CARLA dataset
+      ↓
+Open Colab notebook
+      ↓
+Set DATASET_PATH
+      ↓
+Load checkpoints
+      ↓
+In-distribution evaluation
+      ↓
+FGSM robustness
+      ↓
+Calibration / temperature scaling
+      ↓
+Feature-space OOD detection
+      ↓
+Grad-CAM
+      ↓
+ODD k-projection coverage
+```
+
+Training from scratch is only required if the checkpoints are
+unavailable or retraining is desired.
+
+## Reproducibility Notes
+
+-   Keep the checkpoint architecture unchanged.
+-   Use the same preprocessing and normalization.
+-   Use the same dataset splits.
+-   Use `epsilon = 0.05` for the reported FGSM experiment.
+-   Use validation data for temperature scaling and test data for final
+    calibration evaluation.
+-   Use the same reference features and k-NN configuration for OOD
+    detection.
+-   Use the same ODD dimensions and scenario encoding for k-projection
+    coverage.
+-   Small numerical differences may occur due to hardware, library
+    versions, random seeds, or retraining.
+-   The CARLA dataset is not included in this repository.
 
 ## Limitations
 
-The following limitations should be considered when interpreting the results:
-
-- **Pedestrian detection performance:** The pedestrian classifier performs substantially worse than the vehicle and traffic-light classifiers on the in-distribution test set. Small, occluded, or visually ambiguous pedestrians are particularly challenging.
-
-- **Potential annotation inconsistency:** Manual inspection identified at least one potential inconsistency between a provided label and the corresponding image. For example, frame `13400` is labelled `has_pedestrian = True`, although no clearly visible pedestrian can be identified in the corresponding RGB image. Such annotation issues may negatively affect training and evaluation, particularly for pedestrian detection.
-
-- **Presence-only detection:** The models predict only whether a pedestrian, vehicle, or traffic light is present. The traffic-light detector does not determine the signal state (e.g., red or green), and the models do not provide object location or distance.
-
-- **Adversarial robustness:** The models show substantial degradation under the evaluated FGSM perturbation with `epsilon = 0.05`. They should therefore not be considered robust against adversarial manipulation of the camera input.
-
-- **OOD coverage:** The OOD experiments focus on the available Fog and Night scenarios. These conditions do not cover every possible unseen environment or weather condition.
-
-- **Camera-only perception:** The evaluated perception system relies on the front-facing RGB camera. No independent LiDAR, radar, or depth sensor is used as a backup perception source.
-
-- **Fallback validation:** A complete autonomous fallback and human-takeover mechanism is not experimentally validated in these experiments. Therefore, its effectiveness and response time cannot be established from the reported model experiments alone.
-
-- **Model improvement trade-off:** An additional pedestrian-model improvement attempt increased recall but substantially reduced precision and overall accuracy. Thus, increasing model complexity alone did not provide a clear overall improvement.
-
-These limitations should be considered when interpreting the reported performance and when extending the system.
-
-## Notes
-
-- The CARLA dataset is not included in this repository.
-- A GPU is recommended for training and feature extraction.
-- Dataset paths may need to be changed depending on the execution environment.
-- Provided checkpoints can be used to reproduce evaluation results without retraining.
-- The model architecture must match the architecture used to create a checkpoint.
-- Small numerical differences may occur when models are retrained because of random initialization, library versions, and hardware/software differences.
-- Training from scratch is optional when the corresponding trained checkpoints are available.
-
-## Quick Reproduction
-
-```text
-1. Download and extract the CARLA dataset
-              ↓
-2. Open the Colab notebook
-              ↓
-3. Set DATASET_PATH
-              ↓
-4. Load the provided .pth checkpoints
-              ↓
-5. Run the evaluation sections
-              ↓
-6. Reproduce detection, robustness,
-   calibration, OOD and Grad-CAM results
-```
-
-Training from scratch is only required if the checkpoints are not available or if you want to retrain the models.
+The pedestrian detector performs substantially worse than the vehicle
+and traffic-light detectors. The models also degrade under the evaluated
+FGSM perturbation, while OOD experiments cover only the available
+scenarios. The classifiers perform presence-only detection and do not
+provide object location, distance, or traffic-light state. The reported
+experiments therefore provide evidence for the evaluated conditions but
+do not establish unrestricted deployment safety.
